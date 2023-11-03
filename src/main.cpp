@@ -14,11 +14,13 @@ void state_elm();
 void state_can();
 void state_e0();
 void state_e1();
+void state_logo();
 void disp_val(int val);
+int elmdecode(int hchar,int lchar);
+int asciicode(int vchar);
 
 BluetoothSerial SerialBT;
-#define BT_DISCOVER_TIME  10000
-//static bool btScanSync = true;
+//#define BT_DISCOVER_TIME  10000
 const char *pin = "1234";
 String myName = "ESP32-BT-Master";
 String slaveName = "Android-Vlink";
@@ -36,7 +38,26 @@ void setup() {
 
   //OLED SH1106 128x64
   u8g2.begin();
-
+//-----------------------------------------------------------------TESTS
+  state_logo();
+  //disp_val(-25);  //TEST
+  /*
+  disp_val(elmdecode(0x31,0x32)); //показать на дисплее число 12h (18)
+  delay(2000);
+  disp_val(elmdecode(0x38,0x39)); //показать на дисплее число 89h (137)
+  delay(2000);
+  disp_val(elmdecode(0x39,0x41)); //показать на дисплее число 9Ah (154)
+  delay(2000);
+  disp_val(elmdecode(0x35,0x37)); //показать на дисплее число 57h (87)
+  delay(2000);
+  disp_val(elmdecode(0x43,0x44)); //показать на дисплее число CDh (205)
+  delay(2000);
+  disp_val(elmdecode(0x46,0x46)); //показать на дисплее число FFh (255)
+  delay(2000);
+  disp_val(elmdecode(0x30,0x30)); //показать на дисплее число 00h (0)
+  */
+  delay(2000);
+//------------------------------------------------------------------
   state_bt(); //состояние подключения к блютуз
 
   SerialBT.begin(myName, true); //Инициализируем как мастер
@@ -49,18 +70,6 @@ void setup() {
   Serial.println("I2C_SCL= "+String(SCL));
   Serial.println("---------------------------------");
 
-//----------------------------СКАНИРУЕМ СЕТЬ-------------------------------
-/*
-  if (btScanSync) {
-    Serial.println("Starting discover...");
-    BTScanResults *pResults = SerialBT.discover(BT_DISCOVER_TIME);
-    if (pResults)
-      pResults->dump(&Serial);
-    else
-      Serial.println("Error on BT Scan, no result!");
-  }
-*/
-//-------------------------------------------------------------------------
 
   connected = SerialBT.connect(slaveName);
   Serial.printf("Connecting to slave BT device named \"%s\"\n", slaveName.c_str());
@@ -92,8 +101,8 @@ void setup() {
 
   //Проверим ответ от ELM327 на "01 05"
   if( count_c == 12 && mcalibr[0] == 52 ) { //проверка на успешный ответ 34 31 20 30 35 20 33 38 20 0D 0D 3E (12)
-    //disp_val(elmdecode(mcalibr[6],mcalibr[7])-40); //показать на дислее число 
-    disp_val(mcalibr[7]);  //TEST
+    disp_val(elmdecode(mcalibr[6],mcalibr[7])-40); //показать на дисплее число 
+    //disp_val(mcalibr[7]);  //TEST
     flag_ok = true;
     delay(2000);
   } else if (count_c == 12 && mcalibr[0] == 67 ){
@@ -118,8 +127,8 @@ if (flag_ok){
   ReadELM(); //6 -> 41 05 58 0D 0D 3E
   //Проверим ответ от ELM327 на "01 05"
   if( count_c == 12 && mcalibr[0] == 52 ) { //проверка на успешный ответ 34 31 20 30 35 20 33 38 20 0D 0D 3E (11)
-    //disp_val(elmdecode(mcalibr[6],mcalibr[7])-40); //показать на дислее число
-    disp_val(mcalibr[7]);
+    disp_val(elmdecode(mcalibr[6],mcalibr[7])-40); //показать на дисплее число
+    //disp_val(mcalibr[7]); //TEST
   } else {
     state_e0();//ошибка цикла опроса
     flag_ok = false; //выключаем цикл..
@@ -144,23 +153,6 @@ void ReadELM() {
 }
 
 
-/*
-int ReadELM() {
-  RxBuffer = "";
-  char RxByte;
-  int count_c = 0;
-
-  while (SerialBT.available()){
-    RxByte = SerialBT.read();  //Читаем байт
-    RxBuffer += String(RxByte); //в буфер
-    count_c++;
-    Serial.println("Byte counter: "+String(count_c));
-    if (RxByte == '\n' || count_c >= 32) break;
-  }
-
-  return count_c;
-}
-*/
 void serial2_clear() {
 
       while (SerialBT.available())  //очищаем буфер приема
@@ -179,6 +171,12 @@ void state_bt(){
   u8g2.clearBuffer();					// clear display buffer
   u8g2.setFont(u8g2_font_inb49_mf);//big font
   u8g2.drawStr(23,64-5,"BT");
+  u8g2.sendBuffer();
+}
+void state_logo(){
+  u8g2.clearBuffer();					// clear display buffer
+  u8g2.setFont(u8g2_font_open_iconic_embedded_4x_t);//open iconic
+  u8g2.drawStr(48,64-15,"N");
   u8g2.sendBuffer();
 }
 void state_e0(){
@@ -212,12 +210,31 @@ void state_can(){
   u8g2.sendBuffer();
 }
 void disp_val(int val){
-  if(val >= 0){   //положительные значения
-    String str_value = String(val);
+  String str_value = String(val);
+
     u8g2.clearBuffer();					// clear display buffer
     u8g2.setFont(u8g2_font_logisoso62_tn);//big font for clock
     u8g2.drawStr(2,63,str_value.c_str());
     u8g2.sendBuffer();
+}
+
+int elmdecode(int hchar,int lchar) { //результат может быть от 0 до 255 только!!!
+  int resbyte = 999;
+  int hbyte = asciicode(hchar);
+  int lbyte = asciicode(lchar);
+  
+  //Проверка на ошибку..
+  if (hbyte > 15 || lbyte > 15)
+    return resbyte;
+  else
+    return hbyte*16+lbyte;
+}
+int asciicode(int vchar){ //результат может быть от 0 до 15 только!!!
+  int resbyte =16;
+  if (vchar >= 48 && vchar <= 57) { //цифры (0-9)
+    resbyte = vchar-48;
+  } else if (vchar >= 65 && vchar <= 70) { //буквы (10-15)
+    resbyte = vchar-65+10;
   }
-  //else {}
+  return resbyte;
 }
