@@ -5,23 +5,18 @@
 //I2C for SH1106 OLED 128x64
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
-void ReadELM(); //декларация функций..
+ //декларация функций..
+void ReadELM();
 void serial2_clear();
 String _elm_hex_calibr();
-//void state_bt(); //состояние на экран..
-//void state_res();
-//void state_elm();
-//void state_can();
 void disp_str(String vstr);
-//void state_e0();
-//void state_e1();
 void state_logo();
 void disp_val(int val);
 int elmdecode(int hchar,int lchar);
 int asciicode(int vchar);
+void disp_dump(String vstr);
 
 BluetoothSerial SerialBT;
-//#define BT_DISCOVER_TIME  10000
 const char *pin = "1234";
 String myName = "ESP32-BT-Master";
 String slaveName = "Android-Vlink";
@@ -42,25 +37,14 @@ void setup() {
   state_logo();
   delay(2000);
 //-----------------------------------------------------------------TESTS
- 
-  //disp_str("AB"); //показать на дисплее число 00h (0)
-  //delay(2000);
-  //disp_str("ABC"); //показать на дисплее число 00h (0)
-  //delay(2000);
-  /*
-  disp_str("AB CD EF 12 34 3FS"); //показать на дисплее число 00h (0)
-  delay(4000);
-  disp_str("AB CD EF 12 34 3FS123456"); //показать на дисплее число 00h (0)
-  delay(4000);
-  disp_str("AB CD EF 12 34 3FS123456789ABCDEF1234"); //показать на дисплее число 00h (0)
-  delay(4000);
-  disp_str("AB CD EF 12 34 3FS123456789ABCDEF12341 42 43 44 45 46.47 48 49 50 51.xx."); //показать на дисплее число 00h (0)
-  delay(4000);
-  disp_str("AB CD EF 12 34 3FS123456789ABCDEF12341 42 43 44 45 46.47 48 49 50 51.xx.Hallo World!"); //показать на дисплее число 00h (0)
-  delay(4000);
+
+  //disp_str("AB CD EF 12 34 3FS123456789ABCDEF12341 42 43 44 45 46.47 48 49 50 51.xx.Hallo World!"); //показать на дисплее число 00h (0)
+  //delay(4000);
+
+  //disp_dump("[01 05] E1 Error..");
   
-  while(true){delay(10000);} //SROP..
-  */
+  //while(true){delay(10000);} //SROP..
+  
 //------------------------------------------------------------------
   disp_str("BT");//state_bt(); //состояние подключения к блютуз
 
@@ -91,7 +75,7 @@ void setup() {
     }
   }
 
-  disp_str("ELM");//state_elm();//состояние инициализации ELM327
+  disp_str("ELM");//состояние инициализации ELM327
 
   serial2_clear(); SerialBT.println("ATZ"); delay(5000);
   ReadELM(); //16 -> 0D 0D 45 4C 4D 33 32 37 20 76 32 2E 33 0D 0D 3E
@@ -106,17 +90,19 @@ void setup() {
   //Проверим ответ от ELM327 на "01 05"
   if( count_c == 12 && mcalibr[0] == 52 ) { //проверка на успешный ответ 34 31 20 30 35 20 33 38 20 0D 0D 3E (12)
     disp_val(elmdecode(mcalibr[6],mcalibr[7])-40); //показать на дисплее число 
-    //disp_val(mcalibr[7]);  //TEST
     flag_ok = true;
     delay(2000);
   } else if (count_c == 12 && mcalibr[0] == 67 ){
-    disp_str("CAN");//state_can();//Получили ошибку по шине CAN
+    disp_str("CAN");//Получили ошибку по шине CAN
+    delay(5000);
+    disp_dump("[01 05] CAN Error");
     if (SerialBT.disconnect()) {
       Serial.println("Disconnected Successfully!");
     }
-      //flag_ok = true; //TEST
   } else {
-    disp_str("E1");//state_e1();//Неопределенная ошибка
+    disp_str("E1");//Неопределенная ошибка
+    delay(5000);
+    disp_dump("[01 05] E1 Error");
     if (SerialBT.disconnect()) {
       Serial.println("Disconnected Successfully!");
     }
@@ -130,11 +116,12 @@ if (flag_ok){
   serial2_clear(); SerialBT.println("01 05"); delay(500);
   ReadELM(); //6 -> 41 05 58 0D 0D 3E
   //Проверим ответ от ELM327 на "01 05"
-  if( count_c == 12 && mcalibr[0] == 52 ) { //проверка на успешный ответ 34 31 20 30 35 20 33 38 20 0D 0D 3E (11)
+  if( count_c == 12 && mcalibr[0] == 52 ) { //проверка на успешный ответ 34 31 20 30 35 20 33 38 20 0D 0D 3E (12)
     disp_val(elmdecode(mcalibr[6],mcalibr[7])-40); //показать на дисплее число
-    //disp_val(mcalibr[7]); //TEST
   } else {
-    disp_str("E0");//state_e0();//ошибка цикла опроса
+    disp_str("E0");//неопределенная ошибка цикла опроса
+    delay(5000);
+    disp_dump("[01 05] E0 Error");
     flag_ok = false; //выключаем цикл..
     if (SerialBT.disconnect()) {
       Serial.println("Disconnected Successfully!");
@@ -156,7 +143,6 @@ void ReadELM() {
   delay(200);
 }
 
-
 void serial2_clear() {
 
       while (SerialBT.available())  //очищаем буфер приема
@@ -170,19 +156,21 @@ String _elm_hex_calibr(){  //hex mcalibr[] string
         mcalibr[16],mcalibr[17],mcalibr[18],mcalibr[19],mcalibr[20],mcalibr[21],mcalibr[22],mcalibr[23]);
       return hexChar;
 }
-/*
-void state_bt(){
-  u8g2.clearBuffer();					// clear display buffer
-  u8g2.setFont(u8g2_font_inb49_mf);//big font
-  u8g2.drawStr(23,64-5,"BT");
-  u8g2.sendBuffer();
-}*/
+
 void state_logo(){
   u8g2.clearBuffer();					// clear display buffer
   u8g2.setFont(u8g2_font_open_iconic_embedded_4x_t);//open iconic
   u8g2.drawStr(48,64-15,"N");
   u8g2.sendBuffer();
 }
+
+/*распечатка дампа ответа от ELM327*/
+/*параметр - 5 строка*/
+void disp_dump(String vstr){
+  String strdump = _elm_hex_calibr(); //дамп в виде строки
+  disp_str(strdump+vstr);
+}
+
 /* Вывод строковых значений на ЖК дисплей*/
 void disp_str(String vstr){ 
   u8g2.clearBuffer();
@@ -220,40 +208,10 @@ void disp_str(String vstr){
   }
   u8g2.sendBuffer();
 }
-/*
-void state_e0(){
-  u8g2.clearBuffer();					// clear display buffer
-  u8g2.setFont(u8g2_font_inb49_mf);//big font
-  u8g2.drawStr(23,64-5,"E0");
-  u8g2.sendBuffer();
-}
-void state_e1(){
-  u8g2.clearBuffer();					// clear display buffer
-  u8g2.setFont(u8g2_font_inb49_mf);//big font
-  u8g2.drawStr(23,64-5,"E1");
-  u8g2.sendBuffer();
-}
-void state_res(){
-  u8g2.clearBuffer();					// clear display buffer
-  u8g2.setFont(u8g2_font_inb49_mf);//big font
-  u8g2.drawStr(2,64-5,"RES");
-  u8g2.sendBuffer();
-}
-void state_elm(){
-  u8g2.clearBuffer();					// clear display buffer
-  u8g2.setFont(u8g2_font_inb49_mf);//big font
-  u8g2.drawStr(2,64-5,"ELM");
-  u8g2.sendBuffer();
-}
-void state_can(){
-  u8g2.clearBuffer();					// clear display buffer
-  u8g2.setFont(u8g2_font_inb49_mf);//big font
-  u8g2.drawStr(2,64-5,"CAN");
-  u8g2.sendBuffer();
-}*/
+
 void disp_val(int val){
   if (val > 255 || val < -99){  //не цифровое либо больше 3х знаков
-    disp_str("E3");
+    disp_str("E3"); //ошибка при вычислении пераметра от ELM327
   } else {
     String str_value = String(val);
     u8g2.clearBuffer();					// clear display buffer
