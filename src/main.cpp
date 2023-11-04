@@ -12,6 +12,7 @@ void state_bt(); //состояние на экран..
 void state_res();
 void state_elm();
 void state_can();
+void disp_str(String vstr);
 void state_e0();
 void state_e1();
 void state_logo();
@@ -38,25 +39,19 @@ void setup() {
 
   //OLED SH1106 128x64
   u8g2.begin();
-//-----------------------------------------------------------------TESTS
   state_logo();
-  //disp_val(-25);  //TEST
-  /*
-  disp_val(elmdecode(0x31,0x32)); //показать на дисплее число 12h (18)
   delay(2000);
-  disp_val(elmdecode(0x38,0x39)); //показать на дисплее число 89h (137)
+//-----------------------------------------------------------------TESTS
+ 
+  disp_str("AB"); //показать на дисплее число 00h (0)
   delay(2000);
-  disp_val(elmdecode(0x39,0x41)); //показать на дисплее число 9Ah (154)
+  disp_str("ABC"); //показать на дисплее число 00h (0)
   delay(2000);
-  disp_val(elmdecode(0x35,0x37)); //показать на дисплее число 57h (87)
+  disp_str("ABCDEF"); //показать на дисплее число 00h (0)
   delay(2000);
-  disp_val(elmdecode(0x43,0x44)); //показать на дисплее число CDh (205)
   delay(2000);
-  disp_val(elmdecode(0x46,0x46)); //показать на дисплее число FFh (255)
-  delay(2000);
-  disp_val(elmdecode(0x30,0x30)); //показать на дисплее число 00h (0)
-  */
-  delay(2000);
+  
+  
 //------------------------------------------------------------------
   state_bt(); //состояние подключения к блютуз
 
@@ -179,6 +174,20 @@ void state_logo(){
   u8g2.drawStr(48,64-15,"N");
   u8g2.sendBuffer();
 }
+void disp_str(String vstr){  //распечатка строки на дисплей
+  u8g2.clearBuffer();
+  if(vstr.length() <= 2 ) {           //2 знака
+    u8g2.setFont(u8g2_font_inb49_mf);
+    u8g2.drawStr(23,64-5,vstr.c_str());
+  } else if ( vstr.length() == 3 ){   //3 знака
+    u8g2.setFont(u8g2_font_inb49_mf);
+    u8g2.drawStr(2,64-5,vstr.c_str());
+  } else {                            //больше 3х знаков
+    u8g2.setFont(u8g2_font_ncenB08_tr);
+    u8g2.drawStr(0,10,vstr.c_str());
+  }
+  u8g2.sendBuffer();
+}
 void state_e0(){
   u8g2.clearBuffer();					// clear display buffer
   u8g2.setFont(u8g2_font_inb49_mf);//big font
@@ -210,12 +219,15 @@ void state_can(){
   u8g2.sendBuffer();
 }
 void disp_val(int val){
-  String str_value = String(val);
-
+  if (val > 255 || val < -99){  //не цифровое либо больше 3х знаков
+    disp_str("E3");
+  } else {
+    String str_value = String(val);
     u8g2.clearBuffer();					// clear display buffer
     u8g2.setFont(u8g2_font_logisoso62_tn);//big font for clock
     u8g2.drawStr(2,63,str_value.c_str());
     u8g2.sendBuffer();
+  }
 }
 
 int elmdecode(int hchar,int lchar) { //результат может быть от 0 до 255 только!!!
