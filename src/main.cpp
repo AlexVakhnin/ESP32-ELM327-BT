@@ -8,13 +8,13 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 void ReadELM(); //декларация функций..
 void serial2_clear();
 String _elm_hex_calibr();
-void state_bt(); //состояние на экран..
-void state_res();
-void state_elm();
-void state_can();
+//void state_bt(); //состояние на экран..
+//void state_res();
+//void state_elm();
+//void state_can();
 void disp_str(String vstr);
-void state_e0();
-void state_e1();
+//void state_e0();
+//void state_e1();
 void state_logo();
 void disp_val(int val);
 int elmdecode(int hchar,int lchar);
@@ -43,17 +43,26 @@ void setup() {
   delay(2000);
 //-----------------------------------------------------------------TESTS
  
-  disp_str("AB"); //показать на дисплее число 00h (0)
-  delay(2000);
-  disp_str("ABC"); //показать на дисплее число 00h (0)
-  delay(2000);
-  disp_str("ABCDEF"); //показать на дисплее число 00h (0)
-  delay(2000);
-  delay(2000);
+  //disp_str("AB"); //показать на дисплее число 00h (0)
+  //delay(2000);
+  //disp_str("ABC"); //показать на дисплее число 00h (0)
+  //delay(2000);
+  /*
+  disp_str("AB CD EF 12 34 3FS"); //показать на дисплее число 00h (0)
+  delay(4000);
+  disp_str("AB CD EF 12 34 3FS123456"); //показать на дисплее число 00h (0)
+  delay(4000);
+  disp_str("AB CD EF 12 34 3FS123456789ABCDEF1234"); //показать на дисплее число 00h (0)
+  delay(4000);
+  disp_str("AB CD EF 12 34 3FS123456789ABCDEF12341 42 43 44 45 46.47 48 49 50 51.xx."); //показать на дисплее число 00h (0)
+  delay(4000);
+  disp_str("AB CD EF 12 34 3FS123456789ABCDEF12341 42 43 44 45 46.47 48 49 50 51.xx.Hallo World!"); //показать на дисплее число 00h (0)
+  delay(4000);
   
-  
+  while(true){delay(10000);} //SROP..
+  */
 //------------------------------------------------------------------
-  state_bt(); //состояние подключения к блютуз
+  disp_str("BT");//state_bt(); //состояние подключения к блютуз
 
   SerialBT.begin(myName, true); //Инициализируем как мастер
   SerialBT.setPin(pin); //Устанавливаем PIN
@@ -82,7 +91,7 @@ void setup() {
     }
   }
 
-  state_elm();//состояние инициализации ELM327
+  disp_str("ELM");//state_elm();//состояние инициализации ELM327
 
   serial2_clear(); SerialBT.println("ATZ"); delay(5000);
   ReadELM(); //16 -> 0D 0D 45 4C 4D 33 32 37 20 76 32 2E 33 0D 0D 3E
@@ -101,13 +110,13 @@ void setup() {
     flag_ok = true;
     delay(2000);
   } else if (count_c == 12 && mcalibr[0] == 67 ){
-    state_can();//Получили ошибку по шине CAN
+    disp_str("CAN");//state_can();//Получили ошибку по шине CAN
     if (SerialBT.disconnect()) {
       Serial.println("Disconnected Successfully!");
     }
       //flag_ok = true; //TEST
   } else {
-    state_e1();//Неопределенная ошибка
+    disp_str("E1");//state_e1();//Неопределенная ошибка
     if (SerialBT.disconnect()) {
       Serial.println("Disconnected Successfully!");
     }
@@ -125,7 +134,7 @@ if (flag_ok){
     disp_val(elmdecode(mcalibr[6],mcalibr[7])-40); //показать на дисплее число
     //disp_val(mcalibr[7]); //TEST
   } else {
-    state_e0();//ошибка цикла опроса
+    disp_str("E0");//state_e0();//ошибка цикла опроса
     flag_ok = false; //выключаем цикл..
     if (SerialBT.disconnect()) {
       Serial.println("Disconnected Successfully!");
@@ -161,20 +170,21 @@ String _elm_hex_calibr(){  //hex mcalibr[] string
         mcalibr[16],mcalibr[17],mcalibr[18],mcalibr[19],mcalibr[20],mcalibr[21],mcalibr[22],mcalibr[23]);
       return hexChar;
 }
-
+/*
 void state_bt(){
   u8g2.clearBuffer();					// clear display buffer
   u8g2.setFont(u8g2_font_inb49_mf);//big font
   u8g2.drawStr(23,64-5,"BT");
   u8g2.sendBuffer();
-}
+}*/
 void state_logo(){
   u8g2.clearBuffer();					// clear display buffer
   u8g2.setFont(u8g2_font_open_iconic_embedded_4x_t);//open iconic
   u8g2.drawStr(48,64-15,"N");
   u8g2.sendBuffer();
 }
-void disp_str(String vstr){  //распечатка строки на дисплей
+/* Вывод строковых значений на ЖК дисплей*/
+void disp_str(String vstr){ 
   u8g2.clearBuffer();
   if(vstr.length() <= 2 ) {           //2 знака
     u8g2.setFont(u8g2_font_inb49_mf);
@@ -182,12 +192,35 @@ void disp_str(String vstr){  //распечатка строки на диспл
   } else if ( vstr.length() == 3 ){   //3 знака
     u8g2.setFont(u8g2_font_inb49_mf);
     u8g2.drawStr(2,64-5,vstr.c_str());
-  } else {                            //больше 3х знаков
-    u8g2.setFont(u8g2_font_ncenB08_tr);
-    u8g2.drawStr(0,10,vstr.c_str());
+  } else {                            //больше 3х знаков -----------------------
+    u8g2.setFont(u8g2_font_7x13B_tr);
+    if (vstr.length() <= 18){u8g2.drawStr(0,9,vstr.c_str());} //1 строка
+    else if (vstr.length() > 18 && vstr.length() <= 18*2){  //2 строки
+      u8g2.drawStr(0,9,vstr.substring(0,18).c_str());
+      u8g2.drawStr(0,9*2+4,vstr.substring(18).c_str());
+    }
+    else if (vstr.length() > 18*2 && vstr.length() <= 18*3){  //3 строки "AB CD EF 12 34 3FS.123456789ABCDEF123.4"
+      u8g2.drawStr(0,9,vstr.substring(0,18).c_str());
+      u8g2.drawStr(0,9*2+4,vstr.substring(18,18*2).c_str());
+      u8g2.drawStr(0,9*3+4*2,vstr.substring(18*2).c_str());
+    } 
+    else if(vstr.length() > 18*3 && vstr.length() <= 18*4){  //4 строки
+      u8g2.drawStr(0,9,vstr.substring(0,18).c_str());
+      u8g2.drawStr(0,9*2+4,vstr.substring(18,18*2).c_str());
+      u8g2.drawStr(0,9*3+4*2,vstr.substring(18*2,18*3).c_str());
+      u8g2.drawStr(0,9*4+4*3,vstr.substring(18*3).c_str());
+    }
+    else if(vstr.length() > 18*4 && vstr.length() <= 18*5){  //5 строк
+      u8g2.drawStr(0,9,vstr.substring(0,18).c_str());
+      u8g2.drawStr(0,9*2+4,vstr.substring(18,18*2).c_str());
+      u8g2.drawStr(0,9*3+4*2,vstr.substring(18*2,18*3).c_str());
+      u8g2.drawStr(0,9*4+4*3,vstr.substring(18*3,18*4).c_str());
+      u8g2.drawStr(0,9*5+4*4+3,vstr.substring(18*4).c_str());  //максимально снизу экрана(9*5+4*4+3=64)
+    }
   }
   u8g2.sendBuffer();
 }
+/*
 void state_e0(){
   u8g2.clearBuffer();					// clear display buffer
   u8g2.setFont(u8g2_font_inb49_mf);//big font
@@ -217,7 +250,7 @@ void state_can(){
   u8g2.setFont(u8g2_font_inb49_mf);//big font
   u8g2.drawStr(2,64-5,"CAN");
   u8g2.sendBuffer();
-}
+}*/
 void disp_val(int val){
   if (val > 255 || val < -99){  //не цифровое либо больше 3х знаков
     disp_str("E3");
