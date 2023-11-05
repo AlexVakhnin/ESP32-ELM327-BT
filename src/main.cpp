@@ -11,7 +11,7 @@ void serial2_clear();
 String _elm_hex_calibr();
 void disp_str(String vstr);
 void state_logo();
-void disp_val(int val);
+boolean disp_val(int val);
 int elmdecode(int hchar,int lchar);
 int asciicode(int vchar);
 void disp_dump(String vstr);
@@ -42,7 +42,13 @@ void setup() {
   //delay(4000);
 
   //disp_dump("[01 05] E1 Error..");
-  
+  /*
+     if (!disp_val(elmdecode(0x46,0x46)-40)) { //0xFF - 40
+      disp_str("E3"); //ошибка при вычислении параметра от ELM327
+      delay(5000);
+      disp_dump("[01 05] E3 Error");
+     }
+  */
   //while(true){delay(10000);} //SROP..
   
 //------------------------------------------------------------------
@@ -89,9 +95,18 @@ void setup() {
 
   //Проверим ответ от ELM327 на "01 05"
   if( count_c == 12 && mcalibr[0] == 52 ) { //проверка на успешный ответ 34 31 20 30 35 20 33 38 20 0D 0D 3E (12)
-    disp_val(elmdecode(mcalibr[6],mcalibr[7])-40); //показать на дисплее число 
-    flag_ok = true;
-    delay(2000);
+    if(disp_val(elmdecode(mcalibr[6],mcalibr[7])-40)){
+      flag_ok = true;
+      delay(2000);
+    } else {
+      disp_str("E3"); //ошибка при вычислении параметра от ELM327
+      delay(5000);
+      disp_dump("[01 05] E3 Error");
+      flag_ok = false; //выключаем цикл..  
+      if (SerialBT.disconnect()) {
+      Serial.println("Disconnected Successfully!");
+      }
+    }
   } else if (count_c == 12 && mcalibr[0] == 67 ){
     disp_str("CAN");//Получили ошибку по шине CAN
     delay(5000);
@@ -107,7 +122,6 @@ void setup() {
       Serial.println("Disconnected Successfully!");
     }
   }
-
 }
 
 void loop() {
@@ -117,7 +131,15 @@ if (flag_ok){
   ReadELM(); //6 -> 41 05 58 0D 0D 3E
   //Проверим ответ от ELM327 на "01 05"
   if( count_c == 12 && mcalibr[0] == 52 ) { //проверка на успешный ответ 34 31 20 30 35 20 33 38 20 0D 0D 3E (12)
-    disp_val(elmdecode(mcalibr[6],mcalibr[7])-40); //показать на дисплее число
+    if (!disp_val(elmdecode(mcalibr[6],mcalibr[7])-40)) {
+      disp_str("E3"); //ошибка при вычислении параметра от ELM327
+      delay(5000);
+      disp_dump("[01 05] E3 Error");
+      flag_ok = false; //выключаем цикл..  
+      if (SerialBT.disconnect()) {
+      Serial.println("Disconnected Successfully!");
+      }
+    }
   } else {
     disp_str("E0");//неопределенная ошибка цикла опроса
     delay(5000);
@@ -209,15 +231,17 @@ void disp_str(String vstr){
   u8g2.sendBuffer();
 }
 
-void disp_val(int val){
+boolean disp_val(int val){
   if (val > 255 || val < -99){  //не цифровое либо больше 3х знаков
-    disp_str("E3"); //ошибка при вычислении пераметра от ELM327
+    //disp_str("E3"); //ошибка при вычислении пераметра от ELM327
+    return false;
   } else {
     String str_value = String(val);
     u8g2.clearBuffer();					// clear display buffer
     u8g2.setFont(u8g2_font_logisoso62_tn);//big font for clock
     u8g2.drawStr(2,63,str_value.c_str());
     u8g2.sendBuffer();
+    return true;
   }
 }
 
