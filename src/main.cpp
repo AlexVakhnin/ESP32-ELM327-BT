@@ -15,6 +15,7 @@ boolean disp_val(int val);
 int elmdecode(int hchar,int lchar);
 int asciicode(int vchar);
 void disp_dump(String vstr);
+void sound (int ntik);
 
 BluetoothSerial SerialBT;
 const char *pin = "1234";
@@ -31,6 +32,10 @@ void setup() {
   bool connected;
 
   Serial.begin(115200);
+
+  pinMode(16, OUTPUT);
+  digitalWrite(16, LOW);
+  sound(1);
 
   //OLED SH1106 128x64
   u8g2.begin();
@@ -127,18 +132,23 @@ void setup() {
 void loop() {
 
 if (flag_ok){
-  serial2_clear(); SerialBT.println("01 05"); delay(500);
+  serial2_clear(); SerialBT.println("01 05"); delay(250);
   ReadELM(); //6 -> 41 05 58 0D 0D 3E
-  //Проверим ответ от ELM327 на "01 05"
-  if( count_c == 12 && mcalibr[0] == 52 ) { //проверка на успешный ответ 34 31 20 30 35 20 33 38 20 0D 0D 3E (12)
-    if (!disp_val(elmdecode(mcalibr[6],mcalibr[7])-40)) {
-      disp_str("E3"); //ошибка при вычислении параметра от ELM327
+
+  //проверка на успешный ответ 34 31 20 30 35 20 33 38 20 0D 0D 3E (12) = ['4','1', ,'0','5', ,'3','8', ,0D,0D,3E]
+  if( count_c == 12 && mcalibr[0] == 0x34 ) { 
+    //ответ успешный
+    int vresp = elmdecode(mcalibr[6],mcalibr[7])-40; //вычисляем результат по формуле 
+    if (!disp_val(vresp)) {   //если не в диапазоне то..
+      disp_str("E3");         //ошибка при вычислении параметра от ELM327
       delay(5000);
       disp_dump("[01 05] E3 Error");
       flag_ok = false; //выключаем цикл..  
       if (SerialBT.disconnect()) {
       Serial.println("Disconnected Successfully!");
       }
+    } else {                  //результат выдан на дислей
+      if(vresp >= 98) sound(2); // если предельно горячий двигатель - сигнал..
     }
   } else {
     disp_str("E0");//неопределенная ошибка цикла опроса
@@ -151,7 +161,7 @@ if (flag_ok){
   }
 
 }
-  delay(2000);
+  delay(1800);
 }
 
 //Функция чтения из ELM327
@@ -264,4 +274,20 @@ int asciicode(int vchar){ //результат может быть от 0 до 1
     resbyte = vchar-65+10;
   }
   return resbyte;
+}
+
+void sound (int ntik){
+  if (ntik==1){
+    digitalWrite(16, HIGH);
+    delay(100);
+    digitalWrite(16, LOW);
+  } else if (ntik==2){
+    digitalWrite(16, HIGH);
+    delay(80);
+    digitalWrite(16, LOW);
+    delay(40);
+    digitalWrite(16, HIGH);
+    delay(80);
+    digitalWrite(16, LOW);
+  }
 }
