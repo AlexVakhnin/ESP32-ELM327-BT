@@ -2,6 +2,14 @@
 #include "BluetoothSerial.h"
 #include <U8g2lib.h>
 
+//Timings
+#define t_atz_init 5000 //время для команды ATZ
+#define t_send_receive 250 //задержка между посылаемой командой и приемом ответа от ELM
+#define t_main_loop 1800  //интервал между командами в общем цикле
+#define t_show_error 5000  //время для показа окна с ошибкой
+#define temp_cooler_on 98  //температура включения вентилятора (98)
+
+
 //I2C for SH1106 OLED 128x64
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
@@ -16,6 +24,7 @@ int elmdecode(int hchar,int lchar);
 int asciicode(int vchar);
 void disp_dump(String vstr);
 void sound (int ntik);
+void disp2_err(String str1, String str2);
 
 BluetoothSerial SerialBT;
 const char *pin = "1234";
@@ -25,7 +34,7 @@ String slaveName = "Android-Vlink";
 String RxBuffer = ""; //Буфер заполняется из ELM
 byte mcalibr[24] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; //Буфер риема ELM
 char hexChar[150]; //массив для sprintf() функции (150 - на строку)
-int count_c = 0; //количество принятых символов на строку
+int count_c = 0; //количество принятых байт от ELM
 boolean flag_ok =false; 
 
 void setup() {
@@ -54,7 +63,8 @@ void setup() {
       disp_dump("[01 05] E3 Error");
      }
   */
-  //while(true){delay(10000);} //SROP..
+  //disp2_err("NO DATA","[01 05] E0 Error");
+  //while(true){delay(10000);} //STOP..
   
 //------------------------------------------------------------------
   disp_str("BT");//state_bt(); //состояние подключения к блютуз
@@ -88,24 +98,24 @@ void setup() {
 
   disp_str("ELM");//состояние инициализации ELM327
 
-  serial2_clear(); SerialBT.println("ATZ"); delay(5000);
+  serial2_clear(); SerialBT.println("ATZ"); delay(t_atz_init);
   ReadELM(); //16 -> 0D 0D 45 4C 4D 33 32 37 20 76 32 2E 33 0D 0D 3E
-  serial2_clear(); SerialBT.println("ATE0"); delay(500);
+  serial2_clear(); SerialBT.println("ATE0"); delay(t_send_receive);
   ReadELM(); //10 -> 41 54 45 30 0D 4F 4B 0D 0D 3E
-  serial2_clear(); SerialBT.println("ATL0"); delay(500);
+  serial2_clear(); SerialBT.println("ATL0"); delay(t_send_receive);
   ReadELM(); //5 -> 4F 4B 0D 0D 3E
 
-  serial2_clear(); SerialBT.println("01 05"); delay(500);
+  serial2_clear(); SerialBT.println("01 05"); delay(t_send_receive);
   ReadELM(); //12 -> 43 41 4E 20 45 52 52 4F 52 0D 0D 3E
 
-  //Проверим ответ от ELM327 на "01 05"
-  if( count_c == 12 && mcalibr[0] == 52 ) { //проверка на успешный ответ 34 31 20 30 35 20 33 38 20 0D 0D 3E (12)
+  //проверка на успешный ответ 34 31 20 30 35 20 33 38 20 0D 0D 3E (12) = ['4','1', ,'0','5', ,'3','8', ,0D,0D,3E]
+  if( count_c == 12 && mcalibr[0] == 0x34 && mcalibr[4] == 0x35) {
     if(disp_val(elmdecode(mcalibr[6],mcalibr[7])-40)){
       flag_ok = true;
-      delay(2000);
+      delay(t_main_loop);
     } else {
       disp_str("E3"); //ошибка при вычислении параметра от ELM327
-      delay(5000);
+      delay(t_show_error);
       disp_dump("[01 05] E3 Error");
       flag_ok = false; //выключаем цикл..  
       if (SerialBT.disconnect()) {
@@ -114,14 +124,14 @@ void setup() {
     }
   } else if (count_c == 12 && mcalibr[0] == 67 ){
     disp_str("CAN");//Получили ошибку по шине CAN
-    delay(5000);
+    delay(t_show_error);
     disp_dump("[01 05] CAN Error");
     if (SerialBT.disconnect()) {
       Serial.println("Disconnected Successfully!");
     }
   } else {
     disp_str("E1");//Неопределенная ошибка
-    delay(5000);
+    delay(t_show_error);
     disp_dump("[01 05] E1 Error");
     if (SerialBT.disconnect()) {
       Serial.println("Disconnected Successfully!");
@@ -132,27 +142,35 @@ void setup() {
 void loop() {
 
 if (flag_ok){
-  serial2_clear(); SerialBT.println("01 05"); delay(250);
+  serial2_clear(); SerialBT.println("01 05"); delay(t_send_receive);
   ReadELM(); //6 -> 41 05 58 0D 0D 3E
 
   //проверка на успешный ответ 34 31 20 30 35 20 33 38 20 0D 0D 3E (12) = ['4','1', ,'0','5', ,'3','8', ,0D,0D,3E]
-  if( count_c == 12 && mcalibr[0] == 0x34 ) { 
+  if( count_c == 12 && mcalibr[0] == 0x34 && mcalibr[4] == 0x35) { 
     //ответ успешный
     int vresp = elmdecode(mcalibr[6],mcalibr[7])-40; //вычисляем результат по формуле 
     if (!disp_val(vresp)) {   //если не в диапазоне то..
       disp_str("E3");         //ошибка при вычислении параметра от ELM327
-      delay(5000);
+      delay(t_show_error);
       disp_dump("[01 05] E3 Error");
       flag_ok = false; //выключаем цикл..  
       if (SerialBT.disconnect()) {
       Serial.println("Disconnected Successfully!");
       }
-    } else {                  //результат выдан на дислей
-      if(vresp >= 98) sound(2); // если предельно горячий двигатель - сигнал..
+    } else {                  //результат датчика выдан на дислей
+      if(vresp == temp_cooler_on ) sound(2); // сигнал два коротких в цикле опроса
+      if(vresp > temp_cooler_on) digitalWrite(16, HIGH); //непрерывный сигнал включить
+      if(vresp < temp_cooler_on) digitalWrite(16, LOW); //все сигналы выключить (контрольный)
+    }
+  } else if( count_c == 10 && mcalibr[0] == 0x4E && mcalibr[3] == 0x44) { //NO DATA ERROR
+    disp2_err("NO DATA","[01 05] E0 Error");
+    flag_ok = false; //выключаем цикл..
+    if (SerialBT.disconnect()) {
+      Serial.println("Disconnected Successfully!");
     }
   } else {
     disp_str("E0");//неопределенная ошибка цикла опроса
-    delay(5000);
+    delay(t_show_error);
     disp_dump("[01 05] E0 Error");
     flag_ok = false; //выключаем цикл..
     if (SerialBT.disconnect()) {
@@ -161,7 +179,7 @@ if (flag_ok){
   }
 
 }
-  delay(1800);
+  delay(t_main_loop);
 }
 
 //Функция чтения из ELM327
@@ -172,7 +190,7 @@ void ReadELM() {
     if (mcalibr[i] != 255) count_c++;
     }        
   Serial.println(_elm_hex_calibr()+" ("+String(count_c)+")");
-  delay(200);
+  //delay(200);
 }
 
 void serial2_clear() {
@@ -238,6 +256,20 @@ void disp_str(String vstr){
       u8g2.drawStr(0,9*5+4*4+3,vstr.substring(18*4).c_str());  //максимально снизу экрана(9*5+4*4+3=64)
     }
   }
+  u8g2.sendBuffer();
+}
+
+void disp2_err(String str1, String str2){
+  int ind_sp = str1.indexOf(' ');
+  String disp_str1 = str1.substring(0,ind_sp);
+  String disp_str2 = str1.substring(ind_sp+1);
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_inb21_mf);
+  u8g2.drawStr(0,40-5,disp_str1.c_str());
+  u8g2.drawStr(46+2,40-5,disp_str2.c_str());
+
+  u8g2.setFont(u8g2_font_7x13B_tr);
+  u8g2.drawStr(0,9*5+4*4+3,str2.c_str());  //максимально снизу экрана(9*5+4*4+3=64)
   u8g2.sendBuffer();
 }
 
