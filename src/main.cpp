@@ -5,7 +5,7 @@
 //Timings
 #define t_atz_init 5000 //время для команды ATZ
 #define t_send_receive 250 //задержка между посылаемой командой и приемом ответа от ELM
-#define t_main_loop 1800  //интервал между командами в общем цикле
+#define t_main_loop 1500  //интервал между командами в общем цикле (1800 - std)
 #define t_show_error 5000  //время для показа окна с ошибкой
 #define temp_cooler_on 98  //температура включения вентилятора (98)
 
@@ -64,6 +64,9 @@ void setup() {
      }
   */
   //disp2_err("NO DATA","[01 05] E0 Error");
+  //disp2_err("CAN ERROR","[01 05] CAN Error"); //плохо..
+  //disp_str("CAN ERR");
+  //disp_dump("[01 05] CAN Error");
   //while(true){delay(10000);} //STOP..
   
 //------------------------------------------------------------------
@@ -158,12 +161,19 @@ if (flag_ok){
       Serial.println("Disconnected Successfully!");
       }
     } else {                  //результат датчика выдан на дислей
-      if(vresp == temp_cooler_on ) sound(2); // сигнал два коротких в цикле опроса
-      if(vresp > temp_cooler_on) digitalWrite(16, HIGH); //непрерывный сигнал включить
-      if(vresp < temp_cooler_on) digitalWrite(16, LOW); //все сигналы выключить (контрольный)
+      if(vresp == temp_cooler_on ) sound(1); // один короткий - температура включения вентилятора
+      else if(vresp == temp_cooler_on + 1 ) sound(2); // сигнал два коротких в цикле опроса
+      else if(vresp > temp_cooler_on + 1 ) digitalWrite(16, HIGH); //непрерывный сигнал включить
+      else /*if(vresp < temp_cooler_on )*/ digitalWrite(16, LOW); //все сигналы выключить (контрольный)
     }
   } else if( count_c == 10 && mcalibr[0] == 0x4E && mcalibr[3] == 0x44) { //NO DATA ERROR
-    disp2_err("NO DATA","[01 05] E0 Error");
+    disp2_err("NO DATA","[01 05] E0 Error"); //без распечатки дампа, две строки - по центру и снизу
+    flag_ok = false; //выключаем цикл..
+    if (SerialBT.disconnect()) {
+      Serial.println("Disconnected Successfully!");
+    }
+  } else if (count_c == 12 && mcalibr[0] == 0x43 && mcalibr[1] == 0x41){ //CAN ERROR
+    disp_dump("[01 05] CAN Error"); // печатаем дамп + нижняя строка - параметр
     flag_ok = false; //выключаем цикл..
     if (SerialBT.disconnect()) {
       Serial.println("Disconnected Successfully!");
@@ -179,7 +189,7 @@ if (flag_ok){
   }
 
 }
-  delay(t_main_loop);
+  delay(t_main_loop); //задержка между опросами в цикле 
 }
 
 //Функция чтения из ELM327
@@ -259,16 +269,17 @@ void disp_str(String vstr){
   u8g2.sendBuffer();
 }
 
+//две строки - по центру и снизу
 void disp2_err(String str1, String str2){
   int ind_sp = str1.indexOf(' ');
   String disp_str1 = str1.substring(0,ind_sp);
   String disp_str2 = str1.substring(ind_sp+1);
   u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_inb21_mf);
+  u8g2.setFont(u8g2_font_inb21_mf); // средний фонт
   u8g2.drawStr(0,40-5,disp_str1.c_str());
   u8g2.drawStr(46+2,40-5,disp_str2.c_str());
 
-  u8g2.setFont(u8g2_font_7x13B_tr);
+  u8g2.setFont(u8g2_font_7x13B_tr); //мелкий фонт
   u8g2.drawStr(0,9*5+4*4+3,str2.c_str());  //максимально снизу экрана(9*5+4*4+3=64)
   u8g2.sendBuffer();
 }
@@ -308,11 +319,12 @@ int asciicode(int vchar){ //результат может быть от 0 до 1
   return resbyte;
 }
 
-void sound (int ntik){
+void sound (int ntik){  //общее время = 200
   if (ntik==1){
     digitalWrite(16, HIGH);
-    delay(100);
+    delay(80);
     digitalWrite(16, LOW);
+    delay(120);
   } else if (ntik==2){
     digitalWrite(16, HIGH);
     delay(80);
