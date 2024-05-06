@@ -8,6 +8,7 @@
 #define t_main_loop 1500  //интервал между командами в общем цикле (1800 - std)
 #define t_show_error 5000  //время для показа окна с ошибкой
 #define temp_cooler_on 98  //температура включения вентилятора (98)
+#define wd_time 60 //количество пустых циклов до перезагрузки time = wd_time * t_main_loop
 
 
 //I2C for SH1106 OLED 128x64
@@ -36,6 +37,7 @@ byte mcalibr[24] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; //Буфе
 char hexChar[150]; //массив для sprintf() функции (150 - на строку)
 int count_c = 0; //количество принятых байт от ELM
 boolean flag_ok =false; 
+int wd_counter = wd_time; //заряжаем watchdog
 
 void setup() {
   bool connected;
@@ -161,6 +163,7 @@ if (flag_ok){
       Serial.println("Disconnected Successfully!");
       }
     } else {                  //результат датчика выдан на дислей
+      wd_counter = wd_time; //заряжаем watchdog
       if(vresp == temp_cooler_on ) sound(1); // один короткий - температура включения вентилятора
       else if(vresp == temp_cooler_on + 1 ) sound(2); // сигнал два коротких в цикле опроса
       else if(vresp > temp_cooler_on + 1 ) digitalWrite(16, HIGH); //непрерывный сигнал включить
@@ -188,6 +191,9 @@ if (flag_ok){
     }
   }
 
+} else { //flag_ok = false (идет пустой цикл, на экране ошибка)
+  wd_counter--;
+  if(wd_counter<=0){ESP.restart();} //перезагрузка
 }
   delay(t_main_loop); //задержка между опросами в цикле 
 }
