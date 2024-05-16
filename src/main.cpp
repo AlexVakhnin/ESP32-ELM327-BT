@@ -36,8 +36,10 @@ String RxBuffer = ""; //Буфер заполняется из ELM
 byte mcalibr[24] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; //Буфер риема ELM
 char hexChar[150]; //массив для sprintf() функции (150 - на строку)
 int count_c = 0; //количество принятых байт от ELM
-boolean flag_ok =false; 
+boolean flag_ok =true; 
 int wd_counter = wd_time; //заряжаем watchdog
+
+
 
 void setup() {
   bool connected;
@@ -54,21 +56,10 @@ void setup() {
   delay(2000);
 //-----------------------------------------------------------------TESTS
 
-  //disp_str("AB CD EF 12 34 3FS123456789ABCDEF12341 42 43 44 45 46.47 48 49 50 51.xx.Hallo World!"); //показать на дисплее число 00h (0)
-  //delay(4000);
-
-  //disp_dump("[01 05] E1 Error..");
-  /*
-     if (!disp_val(elmdecode(0x46,0x46)-40)) { //0xFF - 40
-      disp_str("E3"); //ошибка при вычислении параметра от ELM327
-      delay(5000);
-      disp_dump("[01 05] E3 Error");
-     }
-  */
-  //disp2_err("NO DATA","[01 05] E0 Error");
-  //disp2_err("CAN ERROR","[01 05] CAN Error"); //плохо..
-  //disp_str("CAN ERR");
-  //disp_dump("[01 05] CAN Error");
+  //disp2_err("NO DATA","[01 05] E0 Error");//OK
+  //disp2_err("CAN ERROR","[01 05] CAN Error"); //BAD..
+  //disp2_err("CAN ERR","[01 05] CAN Error"); //BAD..
+  //disp_dump("[01 05] CAN Error"); //OK
   //while(true){delay(10000);} //STOP..
   
 //------------------------------------------------------------------
@@ -92,12 +83,9 @@ void setup() {
   } else {
     while(!SerialBT.connected(10000)) {
       Serial.println("Failed to connect. Make sure remote device is available and in range, then restart app.");
-      //disp_val(327); //TEST
       delay(3000);
       SerialBT.disconnect();
       SerialBT.connect();
-
-      //ESP.restart();
     }
   }
 
@@ -110,44 +98,12 @@ void setup() {
   serial2_clear(); SerialBT.println("ATL0"); delay(t_send_receive);
   ReadELM(); //5 -> 4F 4B 0D 0D 3E
 
-  serial2_clear(); SerialBT.println("01 05"); delay(t_send_receive);
-  ReadELM(); //12 -> 43 41 4E 20 45 52 52 4F 52 0D 0D 3E
-
-  //проверка на успешный ответ 34 31 20 30 35 20 33 38 20 0D 0D 3E (12) = ['4','1', ,'0','5', ,'3','8', ,0D,0D,3E]
-  if( count_c == 12 && mcalibr[0] == 0x34 && mcalibr[4] == 0x35) {
-    if(disp_val(elmdecode(mcalibr[6],mcalibr[7])-40)){
-      flag_ok = true;
-      delay(t_main_loop);
-    } else {
-      disp_str("E3"); //ошибка при вычислении параметра от ELM327
-      delay(t_show_error);
-      disp_dump("[01 05] E3 Error");
-      flag_ok = false; //выключаем цикл..  
-      if (SerialBT.disconnect()) {
-      Serial.println("Disconnected Successfully!");
-      }
-    }
-  } else if (count_c == 12 && mcalibr[0] == 67 ){
-    disp_str("CAN");//Получили ошибку по шине CAN
-    delay(t_show_error);
-    disp_dump("[01 05] CAN Error");
-    if (SerialBT.disconnect()) {
-      Serial.println("Disconnected Successfully!");
-    }
-  } else {
-    disp_str("E1");//Неопределенная ошибка
-    delay(t_show_error);
-    disp_dump("[01 05] E1 Error");
-    if (SerialBT.disconnect()) {
-      Serial.println("Disconnected Successfully!");
-    }
-  }
 }
 
 void loop() {
 
 if (flag_ok){
-  serial2_clear(); SerialBT.println("01 05"); delay(t_send_receive);
+  serial2_clear(); SerialBT.println("01 05"); delay(t_send_receive); // команда "читать температуру"
   ReadELM(); //6 -> 41 05 58 0D 0D 3E
 
   //проверка на успешный ответ 34 31 20 30 35 20 33 38 20 0D 0D 3E (12) = ['4','1', ,'0','5', ,'3','8', ,0D,0D,3E]
@@ -182,16 +138,16 @@ if (flag_ok){
       Serial.println("Disconnected Successfully!");
     }
   } else {
-    disp_str("E0");//неопределенная ошибка цикла опроса
+    disp_str("???");//неопределенная ошибка цикла опроса
     delay(t_show_error);
-    disp_dump("[01 05] E0 Error");
+    disp_dump("Unknown Error");
     flag_ok = false; //выключаем цикл..
     if (SerialBT.disconnect()) {
       Serial.println("Disconnected Successfully!");
     }
   }
 
-} else { //flag_ok = false (идет пустой цикл, на экране ошибка)
+} else { //flag_ok = false (идет пустой цикл, на экране висит ошибка)
   wd_counter--;
   if(wd_counter<=0){ESP.restart();} //перезагрузка
 }
